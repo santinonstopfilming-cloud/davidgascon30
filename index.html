@@ -517,6 +517,14 @@
     // PEGA AQUÍ LA URL DE TU APLICACIÓN WEB DE APPS SCRIPT:
     const SCRIPT_URL='https://script.google.com/macros/s/AKfycbx626JdTjGY2ChlHmyV3gHJFm_m8dtSzxtGxbDjfS0C3jviJVzmF9Fn8UduF89eZEXfbw/exec';
     
+    // FUNCION DE SEGURIDAD PARA SALTARSE EL BLOQUEO DE GOOGLE CHROME
+    function getSafeUrl(u) {
+      if(u && u.includes('uc?id=')) {
+        return 'https://lh3.googleusercontent.com/d/' + u.split('uc?id=')[1].split('&')[0];
+      }
+      return u;
+    }
+
     const PASSWORDS={familia:'david-familia30',amigos:'david-amigos30',david:'david30'};
     let group=null,pendingGroup=null;
     let pendingFiles=[];
@@ -534,51 +542,27 @@
     function tick(){
       const now = new Date(); 
       const yr = now.getFullYear();
-      // En JS, Octubre es el mes 9 (Enero es 0)
       let t = new Date(yr, 9, 1, 0, 0, 0); 
-      
-      // Si ya ha pasado el 1 de octubre de este año, calculamos para el año que viene
-      if (t <= now) {
-        t = new Date(yr + 1, 9, 1, 0, 0, 0);
-      }
+      if (t <= now) { t = new Date(yr + 1, 9, 1, 0, 0, 0); }
       
       const d = t - now; 
       const wrap = document.querySelector('.cd-wrap'); if(!wrap) return;
+      if(d <= 0){ wrap.innerHTML='<div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:2px; font-weight:700;">// ARCHIVE IS LIVE</div>'; return; }
       
-      if(d <= 0){
-        wrap.innerHTML='<div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:2px; font-weight:700;">// ARCHIVE IS LIVE</div>';
-        return;
-      }
-      
-      const dd=Math.floor(d/86400000); 
-      const hh=Math.floor(d%86400000/3600000); 
-      const mm=Math.floor(d%3600000/60000); 
-      const ss=Math.floor(d%60000/1000);
-      
+      const dd=Math.floor(d/86400000); const hh=Math.floor(d%86400000/3600000); const mm=Math.floor(d%3600000/60000); const ss=Math.floor(d%60000/1000);
       const dEl = document.getElementById('cd-d'); const hEl = document.getElementById('cd-h'); const mEl = document.getElementById('cd-m'); const sEl = document.getElementById('cd-s');
       if(dEl) dEl.textContent=String(dd).padStart(2,'0'); if(hEl) hEl.textContent=String(hh).padStart(2,'0'); if(mEl) mEl.textContent=String(mm).padStart(2,'0'); if(sEl) sEl.textContent=String(ss).padStart(2,'0');
     }
 
     window.addEventListener('DOMContentLoaded', () => {
       tick(); setInterval(tick, 1000); setInterval(rotateLanguages, 2800);
-      setInterval(() => { 
-        if(group) { 
-          if(group === 'david') {
-            loadDavidArchive();
-          } else {
-            loadPhotos(); loadMessages();
-          }
-        } 
-      }, 5000);
+      setInterval(() => { if(group) { if(group === 'david') { loadDavidArchive(); } else { loadPhotos(); loadMessages(); } } }, 5000);
     });
 
     function openModal(g){
       pendingGroup=g;
       const titleEl = document.getElementById('modal-title'); 
-      if(titleEl) {
-        if(g === 'david') titleEl.textContent = 'david.';
-        else titleEl.textContent = g==='familia'?'familia.':'amigos.';
-      }
+      if(titleEl) { if(g === 'david') titleEl.textContent = 'david.'; else titleEl.textContent = g==='familia'?'familia.':'amigos.'; }
       const pwEl = document.getElementById('pw'); if(pwEl) pwEl.value='';
       const errEl = document.getElementById('pw-err'); if(errEl) errEl.style.display='none';
       const modalEl = document.getElementById('modal'); if(modalEl) modalEl.classList.add('active');
@@ -598,18 +582,8 @@
       const loginScreen = document.getElementById('s-login'); const appScreen = document.getElementById('s-app'); const badgeEl = document.getElementById('bar-badge');
       if(loginScreen) loginScreen.classList.remove('active');
       if(appScreen) appScreen.classList.add('active');
-      if(badgeEl) {
-        if(group === 'david') {
-          badgeEl.textContent = `// ARCHIVO MÁSTER — VISTA COMPLETA`;
-        } else {
-          badgeEl.textContent = `// ${group.toUpperCase()} — 1 DE OCTUBRE`;
-        }
-      }
-      if(group === 'david') {
-        navigateToSection('david');
-      } else {
-        backToDashboard();
-      }
+      if(badgeEl) { if(group === 'david') { badgeEl.textContent = `// ARCHIVO MÁSTER — VISTA COMPLETA`; } else { badgeEl.textContent = `// ${group.toUpperCase()} — 1 DE OCTUBRE`; } }
+      if(group === 'david') { navigateToSection('david'); } else { backToDashboard(); }
     }
     function logout(){ group = null; const loginScreen = document.getElementById('s-login'); const appScreen = document.getElementById('s-app'); if(appScreen) appScreen.classList.remove('active'); if(loginScreen) loginScreen.classList.add('active'); }
 
@@ -627,49 +601,37 @@
       loadPhotos(); loadMessages();
     }
 
-    // CARGA EXCLUSIVA MÁSTER PARA DAVID (COMBINA AMBOS MUNDOS)
     async function loadDavidArchive() {
       if(group !== 'david') return;
-      
-      // 1. CARGAR Y FUSIONAR TODAS LAS FOTOS
       try {
         const [resFam, resAmi] = await Promise.all([
-          fetch(`${SCRIPT_URL}?action=getPhotos&group=familia`),
-          fetch(`${SCRIPT_URL}?action=getPhotos&group=amigos`)
+          fetch(`${SCRIPT_URL}?action=getPhotos&group=familia`), fetch(`${SCRIPT_URL}?action=getPhotos&group=amigos`)
         ]);
-        const dFam = await resFam.json();
-        const dAmi = await resAmi.json();
+        const dFam = await resFam.json(); const dAmi = await resAmi.json();
         const allPhotos = [...(dFam.photos || []), ...(dAmi.photos || [])];
-        
         const wall = document.getElementById('david-photo-wall');
         if(wall) {
-          if(!allPhotos.length) {
-            wall.innerHTML = '<div class="empty-state">// Nadie ha subido fotos todavía.</div>';
-          } else {
+          if(!allPhotos.length) { wall.innerHTML = '<div class="empty-state">// Nadie ha subido fotos todavía.</div>'; } 
+          else {
             wall.innerHTML = allPhotos.map(p => `
-              <div class="photo-item-frame" onclick="openLightbox('${p.thumb}','${p.author}')">
-                <img src="${p.thumb}" loading="lazy" alt="Item">
+              <div class="photo-item-frame" onclick="openLightbox('${getSafeUrl(p.thumb)}','${p.author}')">
+                <img src="${getSafeUrl(p.thumb)}" loading="lazy" alt="Item">
                 <div class="photo-item-author">${p.author}</div>
               </div>`).join('');
           }
         }
       } catch(e) { console.error("Error en master fotos David:", e); }
 
-      // 2. CARGAR Y FUSIONAR TODOS LOS MENSAJES
       try {
         const [resFamMsg, resAmiMsg] = await Promise.all([
-          fetch(`${SCRIPT_URL}?action=getMessages&group=familia`),
-          fetch(`${SCRIPT_URL}?action=getMessages&group=amigos`)
+          fetch(`${SCRIPT_URL}?action=getMessages&group=familia`), fetch(`${SCRIPT_URL}?action=getMessages&group=amigos`)
         ]);
-        const dFamMsg = await resFamMsg.json();
-        const dAmiMsg = await resAmiMsg.json();
+        const dFamMsg = await resFamMsg.json(); const dAmiMsg = await resAmiMsg.json();
         const allMsgs = [...(dFamMsg.messages || []), ...(dAmiMsg.messages || [])];
-        
         const list = document.getElementById('david-msg-list');
         if(list) {
-          if(!allMsgs.length) {
-            list.innerHTML = '<div class="empty-state">// El libro de firmas está vacío.</div>';
-          } else {
+          if(!allMsgs.length) { list.innerHTML = '<div class="empty-state">// El libro de firmas está vacío.</div>'; } 
+          else {
             list.innerHTML = allMsgs.map(m => `
               <div class="msg-editorial-card">
                 <div class="msg-card-meta"><span>${m.author}</span><span>${m.date}</span></div>
@@ -695,7 +657,6 @@
       });
     }
 
-    // SUBIDA FOTOS
     async function uploadPhotos(){
       const authorEl = document.getElementById('ph-author'); if(!authorEl) return;
       const author = authorEl.value.trim();
@@ -728,7 +689,6 @@
 
     function toBase64(file){ return new Promise((res,rej) => { const r = new FileReader(); r.onload = e => res(e.target.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(file); }); }
 
-    // RENDERS FOTOS
     async function loadPhotos(){
       try {
         const res = await fetch(`${SCRIPT_URL}?action=getPhotos&group=${group}`);
@@ -742,17 +702,16 @@
         }
         widgetCounter.textContent = data.photos.length + (data.photos.length === 1 ? ' imagen — ver galería →' : ' imágenes — ver galería →');
         wall.innerHTML = data.photos.map(p => `
-          <div class="photo-item-frame" onclick="openLightbox('${p.thumb}','${p.author}')">
-            <img src="${p.thumb}" loading="lazy" alt="Item">
+          <div class="photo-item-frame" onclick="openLightbox('${getSafeUrl(p.thumb)}','${p.author}')">
+            <img src="${getSafeUrl(p.thumb)}" loading="lazy" alt="Item">
             <div class="photo-item-author">${p.author}</div>
           </div>`).join('');
         widgetPreview.innerHTML = data.photos.slice(0, 4).map(p => `
-          <img src="${p.thumb}" class="widget-preview-thumb" onclick="event.stopPropagation(); openLightbox('${p.thumb}','${p.author}');" alt="Thumb">
+          <img src="${getSafeUrl(p.thumb)}" class="widget-preview-thumb" onclick="event.stopPropagation(); openLightbox('${getSafeUrl(p.thumb)}','${p.author}');" alt="Thumb">
         `).join('');
       } catch(e) { console.error(e); }
     }
 
-    // RENDERS DEDICATORIAS
     async function sendMessage(){
       const authorEl = document.getElementById('msg-author'); const textEl = document.getElementById('msg-text'); if(!authorEl || !textEl) return;
       const author = authorEl.value.trim(); const text = textEl.value.trim();
